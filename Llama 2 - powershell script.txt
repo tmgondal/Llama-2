@@ -1,0 +1,57 @@
+$PRESIGNED_URL = Read-Host "Enter the Email Address which you received from Meta"
+$MODEL_SIZE = Read-Host "Enter the Model name"
+$TARGET_FOLDER = "Enter the address of your hard drive"  # Update with your desired destination folder
+mkdir -Force $TARGET_FOLDER
+
+if ([string]::IsNullOrWhiteSpace($MODEL_SIZE)) {
+    $MODEL_SIZE = "7B,13B,70B,7B-chat,13B-chat,70B-chat"
+}
+
+Write-Host "Downloading LICENSE and Acceptable Usage Policy"
+Invoke-WebRequest -Uri ($PRESIGNED_URL -replace '\*', 'LICENSE') -OutFile "$TARGET_FOLDER\LICENSE"
+Invoke-WebRequest -Uri ($PRESIGNED_URL -replace '\*', 'USE_POLICY.md') -OutFile "$TARGET_FOLDER\USE_POLICY.md"
+
+Write-Host "Downloading tokenizer"
+Invoke-WebRequest -Uri ($PRESIGNED_URL -replace '\*', 'tokenizer.model') -OutFile "$TARGET_FOLDER\tokenizer.model"
+Invoke-WebRequest -Uri ($PRESIGNED_URL -replace '\*', 'tokenizer_checklist.chk') -OutFile "$TARGET_FOLDER\tokenizer_checklist.chk"
+(Get-FileHash -Algorithm MD5 -Path "$TARGET_FOLDER\tokenizer_checklist.chk").Hash
+
+foreach ($m in ($MODEL_SIZE -split ',')) {
+    switch ($m) {
+        "7B" {
+            $SHARD = 0
+            $MODEL_PATH = "llama-2-7b"
+        }
+        "7B-chat" {
+            $SHARD = 0
+            $MODEL_PATH = "llama-2-7b-chat"
+        }
+        "13B" {
+            $SHARD = 1
+            $MODEL_PATH = "llama-2-13b"
+        }
+        "13B-chat" {
+            $SHARD = 1
+            $MODEL_PATH = "llama-2-13b-chat"
+        }
+        "70B" {
+            $SHARD = 7
+            $MODEL_PATH = "llama-2-70b"
+        }
+        "70B-chat" {
+            $SHARD = 7
+            $MODEL_PATH = "llama-2-70b-chat"
+        }
+    }
+
+    Write-Host "Downloading $MODEL_PATH"
+    mkdir -Force "$TARGET_FOLDER\$MODEL_PATH"
+
+    for ($s = 0; $s -le $SHARD; $s++) {
+        Invoke-WebRequest -Uri ($PRESIGNED_URL -replace '\*', "$MODEL_PATH/consolidated.$s.pth") -OutFile "$TARGET_FOLDER\$MODEL_PATH\consolidated.$s.pth"
+    }
+
+    Invoke-WebRequest -Uri ($PRESIGNED_URL -replace '\*', "$MODEL_PATH/params.json") -OutFile "$TARGET_FOLDER\$MODEL_PATH\params.json"
+    Invoke-WebRequest -Uri ($PRESIGNED_URL -replace '\*', "$MODEL_PATH/checklist.chk") -OutFile "$TARGET_FOLDER\$MODEL_PATH\checklist.chk"
+    (Get-FileHash -Algorithm MD5 -Path "$TARGET_FOLDER\$MODEL_PATH\checklist.chk").Hash
+}
